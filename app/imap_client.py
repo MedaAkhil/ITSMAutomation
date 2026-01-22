@@ -3,6 +3,8 @@ import email
 from email.header import decode_header
 from app.config import *
 from app.models import get_last_uid, set_last_uid
+from datetime import datetime
+
 
 def fetch_new_emails():
     mail = imaplib.IMAP4_SSL(IMAP_SERVER, IMAP_PORT)
@@ -38,7 +40,10 @@ def fetch_new_emails():
             "from": msg["From"],
             "subject": subject,
             "body": body,
-            "uid": int(uid)
+            "uid": int(uid),
+            "status": "unprocessed",  # Add initial status
+            "intent_processed": False,  # Add this flag
+            "received_at": datetime.now()  # Add timestamp
         })
 
         set_last_uid(int(uid))

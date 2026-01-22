@@ -13,7 +13,7 @@ def start_background_jobs():
     def intent_loop():
         while True:
             process_intents()
-            time.sleep(30)
+            time.sleep(10)
 
     threading.Thread(target=intent_loop, daemon=True).start()
 
@@ -26,6 +26,5 @@ if __name__ == "__main__":
     uvicorn.run(
         "app.main:app",
         host="127.0.0.1",
-        port=8000,
-        reload=True
+        port=8000
     )

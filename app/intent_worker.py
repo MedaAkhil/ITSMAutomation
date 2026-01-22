@@ -1,8 +1,9 @@
+from datetime import datetime
 import json
 from app.models import get_unprocessed_emails, save_intent
 from app.text_cleaner import clean_email_text
 from app.ai_intent import detect_intent
-from app.snow_client import create_incident
+# from app.snow_client import create_incident
 from app.snow_mapper import map_intent_to_incident
 from app.models import save_snow_incident
 
@@ -11,8 +12,10 @@ from app.snow_client import snow_post, get_user_sys_id
 from app.snow_mapper import map_incident, map_service_request
 from app.dedup import generate_fingerprint
 from app.email_reply import send_reply
-from app.helpers import mark_ignored, is_duplicate, save_ticket
+from app.helpers import extract_email, mark_ignored, is_duplicate, save_ticket
 
+from app.db import update_email
+from app.db import emails_col
 
 
 def safe_json_parse(text: str):
@@ -34,51 +37,189 @@ def safe_json_parse(text: str):
         return None
 
 def process_intents():
-    emails = get_unprocessed_emails()
+    try:
+        # Get unprocessed emails - convert cursor to list
+        emails_cursor = get_unprocessed_emails()
+        emails = list(emails_cursor)  # Convert cursor to list
+        print(f"[INTENT LOOP] Emails to process: {len(emails)}")
+        
+        if not emails:
+            print("[INTENT LOOP] No unprocessed emails found")
+            return
 
-    for email in emails:
-        text = email["subject"] + "\n" + email["body"]
+        for email in emails:
+            print(f"[PROCESSING EMAIL] ID: {email.get('_id')}, Subject: {email.get('subject', 'No Subject')}")
+            print(f"[EMAIL DETAILS] From: {email.get('from')}, Status: {email.get('status')}")
 
-        if is_newsletter(text):
-            mark_ignored(email)
-            continue
+            raw_text = email.get("subject", "") + "\n" + email.get("body", "")
+            
+            if not raw_text.strip():
+                print("[WARNING] Empty email content, marking as ignored")
+                mark_ignored(email)
+                continue
 
-        intent = detect_intent(text)
+            # Check for newsletter
+            if is_newsletter(raw_text):
+                mark_ignored(email)
+                print("[IGNORED] Newsletter/Promotional email detected")
+                continue
 
-        if intent["intent_type"] == "ignore":
-            mark_ignored(email)
-            continue
+            # Clean and process text
+            clean_text = raw_text.strip()
+            print(f"[CLEAN TEXT LENGTH]: {len(clean_text)} characters")
+            
+            try:
+                # Call LLM intent detection
+                print(f"[CALLING LLM] Sending to detect_intent...")
+                intent_json = detect_intent(clean_text)
+                print(f"[LLM RESPONSE] Intent: {intent_json}")
+            except Exception as e:
+                print(f"[LLM ERROR] Failed to detect intent: {e}")
+                # Mark as ignored on LLM failure
+                mark_ignored(email)
+                continue
 
-        fingerprint = generate_fingerprint(
-            email.get("from_email", "unknown@system"),
-            email["subject"],
-            intent["intent_type"]
-        )
+            # Check intent type
+            if not intent_json:
+                print("[WARNING] No intent returned from LLM")
+                mark_ignored(email)
+                continue
+                
+            intent_type = intent_json.get("intent_type")
+            if not intent_type or intent_type == "ignore":
+                mark_ignored(email)
+                print("[IGNORED] Not an incident or service request")
+                continue
 
-        if is_duplicate(fingerprint):
-            continue
+            # Process valid intent
+            sender_email = extract_email(email.get("from", ""))
+            print(f"[SENDER EMAIL] Extracted: {sender_email}")
+            
+            fingerprint = generate_fingerprint(
+                sender_email,
+                email.get("subject", ""),
+                intent_type
+            )
+            print(f"[FINGERPRINT] Generated: {fingerprint[:20]}...")
 
-        caller_id = get_user_sys_id(
-            email.get("from_email", "")
-        )
+            # Check for duplicates
+            if is_duplicate(fingerprint):
+                print("[DUPLICATE] Skipping - similar open ticket exists")
+                # Mark as processed but not create new ticket
+                update_email(
+                    email.get("message_id"),
+                    {
+                        "clean_text": clean_text,
+                        "intent": intent_json,
+                        "intent_processed": True,
+                        "processed_at": datetime.utcnow(),
+                        "status": "duplicate"
+                    }
+                )
+                continue
 
-        if intent["intent_type"] == "incident":
-            payload = map_incident(email, intent, caller_id, text)
-            result = snow_post("incident", payload)
-            ticket = result["number"]
+            # Get ServiceNow user ID
+            caller_id = get_user_sys_id(sender_email)
+            if not caller_id:
+                print(f"[ERROR] No ServiceNow user found for {sender_email}")
+                # Still mark as processed but with error
+                update_email(
+                    email.get("message_id"),
+                    {
+                        "clean_text": clean_text,
+                        "intent": intent_json,
+                        "intent_processed": True,
+                        "processed_at": datetime.utcnow(),
+                        "status": "error_no_caller"
+                    }
+                )
+                continue
 
-        elif intent["intent_type"] == "service_request":
-            payload = map_service_request(intent, caller_id)
-            result = snow_post("sc_request", payload)
-            ticket = result["number"]
+            ticket_number = None
+            sys_id = None
+            snow_result = None
 
-        save_ticket(
-            email=email,
-            ticket_number=ticket,
-            fingerprint=fingerprint,
-            ticket_type=intent["intent_type"]
-        )
-        send_reply(email.get("from_email", "unknown@system"), ticket)
+            try:
+                if intent_type == "incident":
+                    print(f"[CREATING INCIDENT] Category: {intent_json.get('category')}, Priority: {intent_json.get('priority')}")
+                    payload = map_incident(email, intent_json, caller_id, clean_text)
+                    print(f"[INCIDENT PAYLOAD] {payload}")
+                    result = snow_post("incident", payload)
+                    ticket_number = result.get("number")
+                    sys_id = result.get("sys_id")
+                    snow_result = result
+                    print(f"[INCIDENT CREATED] Ticket: {ticket_number}, Sys ID: {sys_id}")
+
+                elif intent_type == "service_request":
+                    print(f"[CREATING SERVICE REQUEST] Category: {intent_json.get('category')}")
+                    payload = map_service_request(intent_json, caller_id)
+                    print(f"[SERVICE REQUEST PAYLOAD] {payload}")
+                    result = snow_post("sc_request", payload)
+                    ticket_number = result.get("number")
+                    sys_id = result.get("sys_id")
+                    snow_result = result
+                    print(f"[SERVICE REQUEST CREATED] Ticket: {ticket_number}, Sys ID: {sys_id}")
+                    
+                else:
+                    print(f"[ERROR] Unknown intent type: {intent_type}")
+                    mark_ignored(email)
+                    continue
+
+            except Exception as e:
+                print(f"[SERVICENOW ERROR] Failed to create ticket: {e}")
+                # Update email with error status
+                update_email(
+                    email.get("message_id"),
+                    {
+                        "clean_text": clean_text,
+                        "intent": intent_json,
+                        "intent_processed": True,
+                        "processed_at": datetime.utcnow(),
+                        "status": "error_snow",
+                        "error": str(e)
+                    }
+                )
+                continue
+
+            # Update email with ticket info
+            if ticket_number:
+                update_result = update_email(
+                    email.get("message_id"),
+                    {
+                        "clean_text": clean_text,
+                        "intent": intent_json,
+                        "intent_processed": True,
+                        "processed_at": datetime.utcnow(),
+                        "status": "processed",
+                        "ticket_created": True,
+                        "ticket_number": ticket_number,
+                        "fingerprint": fingerprint,
+                        "snow": {
+                            "number": ticket_number,
+                            "sys_id": sys_id,
+                            "type": intent_type,
+                            "status": "created",
+                            "result": snow_result
+                        }
+                    }
+                )
+                print(f"[DB UPDATE] Updated {update_result} document(s)")
+
+                # Send reply
+                try:
+                    send_reply(sender_email, ticket_number)
+                except Exception as e:
+                    print(f"[REPLY ERROR] Failed to send reply: {e}")
+
+                print(f"[COMPLETED] Successfully processed email -> Ticket {ticket_number}")
+            else:
+                print("[ERROR] Ticket created but no ticket number returned")
+
+    except Exception as e:
+        print(f"[INTENT LOOP ERROR] {type(e).__name__}: {e}")
+        import traceback
+        traceback.print_exc()
+
 
 def is_it_request(text: str) -> bool:
     keywords = [
@@ -88,6 +229,7 @@ def is_it_request(text: str) -> bool:
     ]
     text = text.lower()
     return any(k in text for k in keywords)
+
 def is_it_related(text: str) -> bool:
     keywords = [
         "laptop", "mouse", "keyboard", "vpn", "password",

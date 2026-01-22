@@ -1,5 +1,7 @@
 from pymongo import MongoClient
 from app.config import *
+from datetime import datetime
+from app.db import emails_col
 
 client = MongoClient(MONGO_URI)
 collection = client[DB_NAME][COLLECTION]
@@ -10,10 +12,22 @@ def email_exists(message_id):
     return collection.find_one({"message_id": message_id}) is not None
 
 def save_email(email):
+    # Ensure required fields
+    if "status" not in email:
+        email["status"] = "unprocessed"
+    if "intent_processed" not in email:
+        email["intent_processed"] = False
+    if "received_at" not in email:
+        email["received_at"] = datetime.utcnow()
+    
     collection.insert_one(email)
 
 def get_unprocessed_emails():
-    return collection.find({"intent_processed": {"$ne": True}})
+    # Return emails that are not processed and not ignored
+    return list(collection.find({
+        "intent_processed": {"$ne": True},
+        "status": {"$ne": "ignored"}
+    }))
 
 def save_intent(message_id, intent_data, clean_text):
     collection.update_one(
@@ -32,6 +46,7 @@ def get_bootstrap_done():
 
 def mark_bootstrap_done():
     meta.insert_one({"_id": "bootstrap"})
+
 def get_last_uid():
     doc = meta_collection.find_one({"_id": "imap_state"})
     return doc["last_uid"] if doc else None

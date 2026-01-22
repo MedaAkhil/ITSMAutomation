@@ -1,25 +1,32 @@
-from app.models import email_exists, save_email, get_bootstrap_done, mark_bootstrap_done
+from app.models import email_exists, save_email, get_bootstrap_done, mark_bootstrap_done, set_last_uid
 from app.imap_client import fetch_new_emails
 import time
 
 def poll_emails():
-    first_run = not get_bootstrap_done()
+    # 🔥 FIRST BOOTSTRAP — DO ONCE
+    if not get_bootstrap_done():
+        print("[BOOTSTRAP] Initializing IMAP state...")
 
-    while True:
+        # Fetch once ONLY to move UID pointer
         emails = fetch_new_emails()
+        if emails:
+            last_uid = max(e["uid"] for e in emails)
+            set_last_uid(last_uid)
 
-        for e in emails:
-            # 🔥 ignore old emails on first startup
-            if first_run:
-                continue
+        mark_bootstrap_done()
+        print("[BOOTSTRAP] Ignored all existing emails")
+    
+    # 🔁 NORMAL POLLING (Always run after bootstrap)
+    while True:
+        try:
+            emails = fetch_new_emails()
 
-            if not email_exists(e["message_id"]):
-                save_email(e)
-                print("[NEW EMAIL]", e["subject"])
-
-        if first_run:
-            mark_bootstrap_done()
-            print("[BOOTSTRAP] Ignored old unread emails")
-
-        first_run = False
-        time.sleep(60)
+            for e in emails:
+                if not email_exists(e["message_id"]):
+                    save_email(e)
+                    print(f"[NEW EMAIL SAVED TO DB] Subject: {e['subject']}")
+        
+        except Exception as e:
+            print(f"[POLL ERROR] {e}")
+        
+        time.sleep(10)
