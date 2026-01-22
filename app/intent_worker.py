@@ -6,6 +6,14 @@ from app.snow_client import create_incident
 from app.snow_mapper import map_intent_to_incident
 from app.models import save_snow_incident
 
+from app.text_cleaner import is_newsletter
+from app.snow_client import snow_post, get_user_sys_id
+from app.snow_mapper import map_incident, map_service_request
+from app.dedup import generate_fingerprint
+from app.email_reply import send_reply
+from app.helpers import mark_ignored, is_duplicate, save_ticket
+
+
 
 def safe_json_parse(text: str):
     if not text:
@@ -26,65 +34,51 @@ def safe_json_parse(text: str):
         return None
 
 def process_intents():
-    emails = list(get_unprocessed_emails())
-    print(f"[INTENT] New emails to process: {len(emails)}")
+    emails = get_unprocessed_emails()
 
     for email in emails:
-        clean_text = clean_email_text(
-            email["subject"] + "\n" + email["body"]
-        )
+        text = email["subject"] + "\n" + email["body"]
 
-        print("detect intent triggered:", clean_text[:200])
-        if not is_it_related(clean_text):
-            print("[SKIP] Non-IT email:", email["subject"])
-            save_intent(
-                email["message_id"],
-                {
-                    "intent": "non_it",
-                    "ticket_required": False,
-                    "confidence": 0.99
-                },
-                clean_text
-            )
+        if is_newsletter(text):
+            mark_ignored(email)
             continue
 
-        ai_response = detect_intent(clean_text)
+        intent = detect_intent(text)
 
-        intent_json = safe_json_parse(ai_response)
-        if intent_json.get("ticket_required") is True:
-            incident_payload = map_intent_to_incident(email, intent_json, clean_text)
-
-            result = create_incident(incident_payload)
-
-            save_snow_incident(
-                email["message_id"],
-                result["number"],
-                result["sys_id"]
-            )
-
-            print("[SNOW] Incident created:", result["number"])
-
-
-        if not intent_json:
-            print("[SKIP] Invalid AI output, marking as processed")
-            save_intent(
-                email["message_id"],
-                {
-                    "intent": "unknown",
-                    "ticket_required": False,
-                    "confidence": 0.0
-                },
-                clean_text
-            )
+        if intent["intent_type"] == "ignore":
+            mark_ignored(email)
             continue
 
-        save_intent(
-            email["message_id"],
-            intent_json,
-            clean_text
+        fingerprint = generate_fingerprint(
+            email.get("from_email", "unknown@system"),
+            email["subject"],
+            intent["intent_type"]
         )
 
-        print("[INTENT SAVED]", intent_json.get("intent"))
+        if is_duplicate(fingerprint):
+            continue
+
+        caller_id = get_user_sys_id(
+            email.get("from_email", "")
+        )
+
+        if intent["intent_type"] == "incident":
+            payload = map_incident(email, intent, caller_id, text)
+            result = snow_post("incident", payload)
+            ticket = result["number"]
+
+        elif intent["intent_type"] == "service_request":
+            payload = map_service_request(intent, caller_id)
+            result = snow_post("sc_request", payload)
+            ticket = result["number"]
+
+        save_ticket(
+            email=email,
+            ticket_number=ticket,
+            fingerprint=fingerprint,
+            ticket_type=intent["intent_type"]
+        )
+        send_reply(email.get("from_email", "unknown@system"), ticket)
 
 def is_it_request(text: str) -> bool:
     keywords = [

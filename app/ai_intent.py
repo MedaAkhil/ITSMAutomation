@@ -1,3 +1,4 @@
+import json
 import os
 from groq import Groq
 
@@ -15,13 +16,11 @@ STRICT RULES:
 
 Schema:
 {
-  "intent": string,
-  "category": string,
-  "subcategory": string,
-  "priority": "low" | "medium" | "high",
-  "ticket_required": boolean,
-  "confidence": number,
-  "short_description": string
+    "intent_type: incident | service_request | ignore,"
+    "category: string,"
+    "subcategory: string,"
+    "short_description: string,"
+    "priority: low | medium | high"
 }
 """
 
@@ -37,4 +36,4 @@ def detect_intent(email_text: str):
         temperature=0
     )
 
-    return response.choices[0].message.content
+    return json.loads(response.choices[0].message.content)

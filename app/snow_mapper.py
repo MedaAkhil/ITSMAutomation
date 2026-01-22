@@ -18,3 +18,18 @@ def map_intent_to_incident(email, intent, clean_text):
         "urgency": urgency,
         "impact": impact
     }
+def map_incident(email, intent, caller_id, clean_text):
+    return {
+        "short_description": intent["short_description"],
+        "description": clean_text,
+        "caller_id": caller_id,
+        "category": intent["category"],
+        "impact": 3,
+        "urgency": 3
+    }
+
+def map_service_request(intent, caller_id):
+    return {
+        "short_description": f"Request: {intent['short_description']}",
+        "requested_for": caller_id
+    }
