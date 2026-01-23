@@ -2,7 +2,8 @@ Automate ITSM to speed up internal company process and increase production using
 
 ```bash
 pip install -r requirements.txt
+```
 
 ```bash
 python -m app.main
-
+```
