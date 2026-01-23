@@ -41,9 +41,9 @@ def fetch_new_emails():
             "subject": subject,
             "body": body,
             "uid": int(uid),
-            "status": "unprocessed",  # Add initial status
-            "intent_processed": False,  # Add this flag
-            "received_at": datetime.now()  # Add timestamp
+            "status": "unprocessed",
+            "intent_processed": False,
+            "received_at": datetime.now()
         })
 
         set_last_uid(int(uid))

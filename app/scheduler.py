@@ -3,11 +3,9 @@ from app.imap_client import fetch_new_emails
 import time
 
 def poll_emails():
-    # 🔥 FIRST BOOTSTRAP — DO ONCE
     if not get_bootstrap_done():
         print("[BOOTSTRAP] Initializing IMAP state...")
 
-        # Fetch once ONLY to move UID pointer
         emails = fetch_new_emails()
         if emails:
             last_uid = max(e["uid"] for e in emails)
@@ -16,7 +14,6 @@ def poll_emails():
         mark_bootstrap_done()
         print("[BOOTSTRAP] Ignored all existing emails")
     
-    # 🔁 NORMAL POLLING (Always run after bootstrap)
     while True:
         try:
             emails = fetch_new_emails()

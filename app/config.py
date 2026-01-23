@@ -6,7 +6,6 @@ EMAIL_PASSWORD = "ajtrgdfrnuiijxew"
 KAFKA_BROKER = "kafka:9092"
 KAFKA_TOPIC = "raw_emails"
 
-# SMTP (Auto-reply email)
 SMTP_SERVER = "smtp.gmail.com"
 SMTP_PORT = 465
 

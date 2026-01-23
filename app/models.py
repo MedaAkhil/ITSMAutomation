@@ -12,7 +12,6 @@ def email_exists(message_id):
     return collection.find_one({"message_id": message_id}) is not None
 
 def save_email(email):
-    # Ensure required fields
     if "status" not in email:
         email["status"] = "unprocessed"
     if "intent_processed" not in email:
@@ -23,7 +22,6 @@ def save_email(email):
     collection.insert_one(email)
 
 def get_unprocessed_emails():
-    # Return emails that are not processed and not ignored
     return list(collection.find({
         "intent_processed": {"$ne": True},
         "status": {"$ne": "ignored"}

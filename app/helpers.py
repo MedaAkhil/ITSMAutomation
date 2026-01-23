@@ -1,8 +1,7 @@
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 from app.db import emails_col, tickets_col
 
-# 1️⃣ Mark email as ignored
 def mark_ignored(email):
     result = emails_col.update_one(
         {"_id": email["_id"]},
@@ -15,16 +14,13 @@ def mark_ignored(email):
     print(f"[MARKED IGNORED] Updated {result.modified_count} document(s) for email ID: {email.get('_id')}")
 
 
-# 2️⃣ Check duplicate ticket
 def is_duplicate(fingerprint):
-    """Check if a similar email was already processed recently"""
     try:
-        # Look for emails with same fingerprint that were processed within last 7 days
         existing = emails_col.find_one({
             "fingerprint": fingerprint,
             "intent_processed": True,
-            "status": {"$ne": "ignored"},  # Don't count ignored emails
-            "processed_at": {"$gte": datetime.utcnow() - timedelta(days=7)}  # Last 7 days
+            "status": {"$ne": "ignored"},
+            "processed_at": {"$gte": datetime.utcnow() - timedelta(days=7)}
         })
         
         if existing:
@@ -39,7 +35,6 @@ def is_duplicate(fingerprint):
         return False
 
 
-# 3️⃣ Save created ticket
 def save_ticket(email, ticket_number, fingerprint, ticket_type):
     tickets_col.insert_one({
         "fingerprint": fingerprint,
@@ -65,10 +60,6 @@ def save_ticket(email, ticket_number, fingerprint, ticket_type):
 
 
 def extract_email(from_field: str) -> str:
-    """
-    Input:  'Meda Akhil <meda8125@gmail.com>'
-    Output: 'meda8125@gmail.com'
-    """
     if not from_field:
         return ""
     

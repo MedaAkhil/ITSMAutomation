@@ -27,8 +27,6 @@ Schema:
 
 def detect_intent(email_text: str):
     print(f"\n{'='*80}")
-    print("[LLM INTENT DETECTION] Starting...")
-    print(f"[INPUT TEXT LENGTH]: {len(email_text)} characters")
     print(f"[INPUT TEXT]: {email_text[:200]}...")
     print(f"{'='*80}\n")
     

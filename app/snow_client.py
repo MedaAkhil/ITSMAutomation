@@ -17,7 +17,6 @@ def get_user_sys_id(email):
         if users:
             return users[0]["sys_id"]
         else:
-            # Fallback to admin user or default user
             print(f"[WARNING] User {email} not found in ServiceNow, using fallback")
             return get_fallback_user_id()
     except Exception as e:
@@ -25,9 +24,7 @@ def get_user_sys_id(email):
         return get_fallback_user_id()
 
 def get_fallback_user_id():
-    """Get a default user ID (admin or a default support user)"""
     try:
-        # Try to get the admin user
         res = requests.get(
             f"{BASE_URL}/sys_user",
             auth=(SNOW_USERNAME, SNOW_PASSWORD),
@@ -39,7 +36,6 @@ def get_fallback_user_id():
         if users:
             return users[0]["sys_id"]
         else:
-            # If admin not found, get any active user
             res = requests.get(
                 f"{BASE_URL}/sys_user",
                 auth=(SNOW_USERNAME, SNOW_PASSWORD),

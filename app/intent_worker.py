@@ -24,7 +24,6 @@ def safe_json_parse(text: str):
 
     text = text.strip()
 
-    # Try to extract JSON block if extra text exists
     start = text.find("{")
     end = text.rfind("}")
 
@@ -38,9 +37,8 @@ def safe_json_parse(text: str):
 
 def process_intents():
     try:
-        # Get unprocessed emails - convert cursor to list
         emails_cursor = get_unprocessed_emails()
-        emails = list(emails_cursor)  # Convert cursor to list
+        emails = list(emails_cursor)
         print(f"[INTENT LOOP] Emails to process: {len(emails)}")
         
         if not emails:
@@ -58,28 +56,21 @@ def process_intents():
                 mark_ignored(email)
                 continue
 
-            # Check for newsletter
             if is_newsletter(raw_text):
                 mark_ignored(email)
                 print("[IGNORED] Newsletter/Promotional email detected")
                 continue
 
-            # Clean and process text
             clean_text = raw_text.strip()
-            print(f"[CLEAN TEXT LENGTH]: {len(clean_text)} characters")
             
             try:
-                # Call LLM intent detection
-                print(f"[CALLING LLM] Sending to detect_intent...")
                 intent_json = detect_intent(clean_text)
                 print(f"[LLM RESPONSE] Intent: {intent_json}")
             except Exception as e:
                 print(f"[LLM ERROR] Failed to detect intent: {e}")
-                # Mark as ignored on LLM failure
                 mark_ignored(email)
                 continue
 
-            # Check intent type
             if not intent_json:
                 print("[WARNING] No intent returned from LLM")
                 mark_ignored(email)
@@ -91,7 +82,6 @@ def process_intents():
                 print("[IGNORED] Not an incident or service request")
                 continue
 
-            # Process valid intent
             sender_email = extract_email(email.get("from", ""))
             print(f"[SENDER EMAIL] Extracted: {sender_email}")
             
@@ -102,10 +92,8 @@ def process_intents():
             )
             print(f"[FINGERPRINT] Generated: {fingerprint[:20]}...")
 
-            # Check for duplicates
             if is_duplicate(fingerprint):
                 print("[DUPLICATE] Skipping - similar open ticket exists")
-                # Mark as processed but not create new ticket
                 update_email(
                     email.get("message_id"),
                     {
@@ -118,11 +106,9 @@ def process_intents():
                 )
                 continue
 
-            # Get ServiceNow user ID
             caller_id = get_user_sys_id(sender_email)
             if not caller_id:
                 print(f"[ERROR] No ServiceNow user found for {sender_email}")
-                # Still mark as processed but with error
                 update_email(
                     email.get("message_id"),
                     {
@@ -167,7 +153,6 @@ def process_intents():
 
             except Exception as e:
                 print(f"[SERVICENOW ERROR] Failed to create ticket: {e}")
-                # Update email with error status
                 update_email(
                     email.get("message_id"),
                     {
@@ -181,7 +166,6 @@ def process_intents():
                 )
                 continue
 
-            # Update email with ticket info
             if ticket_number:
                 update_result = update_email(
                     email.get("message_id"),
@@ -205,7 +189,6 @@ def process_intents():
                 )
                 print(f"[DB UPDATE] Updated {update_result} document(s)")
 
-                # Send reply
                 try:
                     send_reply(sender_email, ticket_number)
                 except Exception as e:
