@@ -1,0 +1,791 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PayG ITSM Chatbot</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        .chat-container {
+            width: 100%;
+            max-width: 900px;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            height: 90vh;
+        }
+        
+        .chat-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px 25px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .header-left h1 {
+            font-size: 24px;
+            margin-bottom: 5px;
+        }
+        
+        .header-left p {
+            opacity: 0.9;
+            font-size: 14px;
+        }
+        
+        .user-email {
+            background: rgba(255,255,255,0.2);
+            padding: 8px 16px;
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        
+        .user-email:hover {
+            background: rgba(255,255,255,0.3);
+        }
+        
+        .user-email i {
+            font-size: 14px;
+        }
+        
+        .email-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .email-modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            width: 90%;
+            max-width: 400px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+        
+        .email-modal-content h3 {
+            margin-bottom: 15px;
+            color: #333;
+        }
+        
+        .email-input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            margin-bottom: 15px;
+            outline: none;
+        }
+        
+        .email-input:focus {
+            border-color: #667eea;
+        }
+        
+        .email-modal-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+        
+        .modal-btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+        
+        .modal-btn.cancel {
+            background: #f1f1f1;
+            color: #666;
+        }
+        
+        .modal-btn.save {
+            background: #667eea;
+            color: white;
+        }
+        
+        .chat-messages {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            background: #f8f9fa;
+        }
+        
+        .message {
+            margin-bottom: 20px;
+            display: flex;
+            align-items: flex-start;
+        }
+        
+        .message.user {
+            justify-content: flex-end;
+        }
+        
+        .message-content {
+            max-width: 75%;
+            padding: 12px 18px;
+            border-radius: 18px;
+            position: relative;
+            line-height: 1.5;
+        }
+        
+        .message.user .message-content {
+            background: #667eea;
+            color: white;
+            border-bottom-right-radius: 4px;
+        }
+        
+        .message.assistant .message-content {
+            background: white;
+            color: #333;
+            border-bottom-left-radius: 4px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .message.system {
+            justify-content: center;
+        }
+        
+        .message.system .message-content {
+            background: #f0f4ff;
+            color: #667eea;
+            font-style: italic;
+            font-size: 14px;
+            text-align: center;
+        }
+        
+        .message-ticket {
+            border-left: 4px solid #10b981;
+        }
+        
+        .ticket-badge {
+            display: inline-block;
+            background: #10b981;
+            color: white;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        
+        .message-sender {
+            font-size: 12px;
+            font-weight: 600;
+            margin-bottom: 5px;
+            color: #666;
+        }
+        
+        .message.user .message-sender {
+            text-align: right;
+            color: rgba(255,255,255,0.9);
+        }
+        
+        .typing-indicator {
+            display: none;
+            padding: 12px 18px;
+            background: white;
+            border-radius: 18px;
+            border-bottom-left-radius: 4px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            align-self: flex-start;
+        }
+        
+        .typing-dots {
+            display: flex;
+            gap: 4px;
+        }
+        
+        .typing-dot {
+            width: 8px;
+            height: 8px;
+            background: #667eea;
+            border-radius: 50%;
+            animation: typing 1.4s infinite ease-in-out;
+        }
+        
+        .typing-dot:nth-child(1) { animation-delay: -0.32s; }
+        .typing-dot:nth-child(2) { animation-delay: -0.16s; }
+        
+        @keyframes typing {
+            0%, 80%, 100% { transform: scale(0); opacity: 0.5; }
+            40% { transform: scale(1); opacity: 1; }
+        }
+        
+        .chat-input-container {
+            padding: 20px;
+            background: white;
+            border-top: 1px solid #e9ecef;
+        }
+        
+        .chat-input-form {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .chat-input {
+            flex: 1;
+            padding: 14px 18px;
+            border: 2px solid #e9ecef;
+            border-radius: 12px;
+            font-size: 16px;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+        
+        .chat-input:focus {
+            border-color: #667eea;
+        }
+        
+        .send-button {
+            padding: 14px 24px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .send-button:hover:not(:disabled) {
+            transform: translateY(-2px);
+        }
+        
+        .send-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        
+        .action-btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .action-btn.clear {
+            background: #f8f9fa;
+            color: #666;
+            border: 1px solid #e9ecef;
+        }
+        
+        .action-btn.clear:hover {
+            background: #ef4444;
+            color: white;
+            border-color: #ef4444;
+        }
+        
+        .action-btn.reset {
+            background: #f8f9fa;
+            color: #666;
+            border: 1px solid #e9ecef;
+        }
+        
+        .action-btn.reset:hover {
+            background: #f59e0b;
+            color: white;
+            border-color: #f59e0b;
+        }
+        
+        .status-indicator {
+            font-size: 12px;
+            color: #666;
+            text-align: center;
+            margin-top: 10px;
+        }
+        
+        .status-indicator.connected {
+            color: #10b981;
+        }
+        
+        .status-indicator.disconnected {
+            color: #ef4444;
+        }
+        
+        .welcome-message {
+            background: #f0f4ff;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .welcome-message h3 {
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+        
+        .welcome-message ul {
+            margin-left: 20px;
+            margin-bottom: 15px;
+        }
+        
+        .welcome-message li {
+            margin-bottom: 8px;
+        }
+        
+        @media (max-width: 768px) {
+            .chat-header {
+                flex-direction: column;
+                gap: 15px;
+                text-align: center;
+            }
+            
+            .message-content {
+                max-width: 85%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <div class="chat-header">
+            <div class="header-left">
+                <h1>🤖 PayG ITSM Assistant</h1>
+                <!-- <p>Chat with AI to create IT tickets and get answers</p> -->
+            </div>
+            <div class="user-email" id="userEmailBtn">
+                <i class="fas fa-user-circle"></i>
+                <span id="currentEmail">meda8125@gmail.com</span>
+                <i class="fas fa-chevron-down"></i>
+            </div>
+        </div>
+        
+        <div class="chat-messages" id="chatMessages">
+            <div class="welcome-message">
+                <h3>👋 Welcome to PayG ITSM Assistant!</h3>
+                <p>I can help you with:</p>
+                <ul>
+                    <li><strong>📞 Report IT Issues</strong> - Hardware, software, network problems</li>
+                    <li><strong>📋 Service Requests</strong> - New equipment, software, access</li>
+                    <li><strong>❓ FAQ</strong> - Questions about PayG Ticket Engine</li>
+                </ul>
+                <p>Start by typing your message below!</p>
+            </div>
+        </div>
+        
+        <div class="typing-indicator" id="typingIndicator">
+            <div class="typing-dots">
+                <div class="typing-dot"></div>
+                <div class="typing-dot"></div>
+                <div class="typing-dot"></div>
+            </div>
+        </div>
+        
+        <div class="chat-input-container">
+            <div class="chat-input-form">
+                <input 
+                    type="text" 
+                    class="chat-input" 
+                    id="chatInput" 
+                    placeholder="Type your message here..." 
+                    autocomplete="off"
+                >
+                <button type="submit" class="send-button" id="sendButton">
+                    <i class="fas fa-paper-plane"></i> Send
+                </button>
+            </div>
+            
+            <div class="action-buttons">
+                <button class="action-btn clear" id="clearButton">
+                    <i class="fas fa-trash"></i> Clear Chat
+                </button>
+                <button class="action-btn reset" id="resetButton">
+                    <i class="fas fa-redo"></i> Reset Conversation
+                </button>
+            </div>
+            
+            <div class="status-indicator" id="statusIndicator">Connecting to server...</div>
+        </div>
+    </div>
+    
+    <!-- Email Change Modal -->
+    <div class="email-modal" id="emailModal">
+        <div class="email-modal-content">
+            <h3><i class="fas fa-envelope"></i> Change Your Email</h3>
+            <p>Your email will be used for ticket creation and notifications.</p>
+            <input 
+                type="email" 
+                class="email-input" 
+                id="emailInput" 
+                placeholder="Enter your email address"
+                value="meda8125@gmail.com"
+            >
+            <div class="email-modal-buttons">
+                <button class="modal-btn cancel" id="cancelEmailBtn">Cancel</button>
+                <button class="modal-btn save" id="saveEmailBtn">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Configuration
+        const API_BASE_URL = 'http://localhost:8001';
+        
+        // DOM Elements
+        const chatMessages = document.getElementById('chatMessages');
+        const chatInput = document.getElementById('chatInput');
+        const sendButton = document.getElementById('sendButton');
+        const typingIndicator = document.getElementById('typingIndicator');
+        const currentEmail = document.getElementById('currentEmail');
+        const statusIndicator = document.getElementById('statusIndicator');
+        const clearButton = document.getElementById('clearButton');
+        const resetButton = document.getElementById('resetButton');
+        const userEmailBtn = document.getElementById('userEmailBtn');
+        const emailModal = document.getElementById('emailModal');
+        const emailInput = document.getElementById('emailInput');
+        const cancelEmailBtn = document.getElementById('cancelEmailBtn');
+        const saveEmailBtn = document.getElementById('saveEmailBtn');
+        
+        // State
+        let conversationHistory = [];
+        let currentUserEmail = 'meda8125@gmail.com';
+        
+        // Check API health
+        async function checkHealth() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/health`);
+                if (response.ok) {
+                    const data = await response.json();
+                    statusIndicator.textContent = `✅ Connected To PayG IT Support`;
+                    statusIndicator.className = 'status-indicator connected';
+                    return true;
+                }
+            } catch (error) {
+                console.error('Health check failed:', error);
+                statusIndicator.textContent = '❌ Cannot connect to server';
+                statusIndicator.className = 'status-indicator disconnected';
+                return false;
+            }
+        }
+        
+        // Send message to chatbot
+        async function sendMessage(message) {
+            if (!message.trim()) return;
+            
+            // Add user message to UI
+            addMessageToUI('user', message);
+            
+            // Clear input and disable
+            chatInput.value = '';
+            chatInput.disabled = true;
+            sendButton.disabled = true;
+            
+            // Show typing indicator
+            typingIndicator.style.display = 'block';
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+            
+            try {
+                // Call the API
+                const response = await fetch(`${API_BASE_URL}/chat`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        user_email: currentUserEmail,
+                        message: message
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`API error: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                // Hide typing indicator
+                typingIndicator.style.display = 'none';
+                
+                // Add assistant response
+                if (data.ticket_created && data.ticket_number) {
+                    addMessageToUI('assistant', data.response, true, data.ticket_number);
+                } else {
+                    addMessageToUI('assistant', data.response);
+                }
+                
+                // Store in conversation history
+                conversationHistory.push({
+                    role: 'user',
+                    content: message,
+                    timestamp: new Date().toISOString(),
+                    email: currentUserEmail
+                });
+                
+                conversationHistory.push({
+                    role: 'assistant',
+                    content: data.response,
+                    ticket_created: data.ticket_created,
+                    ticket_number: data.ticket_number,
+                    timestamp: new Date().toISOString()
+                });
+                
+                // Save to localStorage
+                saveConversation();
+                
+            } catch (error) {
+                console.error('Error sending message:', error);
+                addMessageToUI('assistant', `❌ Sorry, I encountered an error: ${error.message}. Please try again.`);
+            } finally {
+                // Re-enable input
+                chatInput.disabled = false;
+                sendButton.disabled = false;
+                chatInput.focus();
+                typingIndicator.style.display = 'none';
+            }
+        }
+        
+        // Add message to UI
+        function addMessageToUI(role, content, isTicket = false, ticketNumber = null) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${role}`;
+            
+            const messageContent = document.createElement('div');
+            messageContent.className = 'message-content';
+            
+            if (isTicket) {
+                messageContent.classList.add('message-ticket');
+            }
+            
+            // Format content with line breaks and basic markdown
+            let formattedContent = content
+                .replace(/\n/g, '<br>')
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                .replace(/✅/g, '<span style="color: #10b981;">✅</span>')
+                .replace(/❌/g, '<span style="color: #ef4444;">❌</span>')
+                .replace(/📧/g, '📧')
+                .replace(/📞/g, '📞')
+                .replace(/🎫/g, '🎫')
+                .replace(/🔧/g, '🔧')
+                .replace(/📋/g, '📋');
+            
+            if (isTicket && ticketNumber) {
+                formattedContent = `<div class="ticket-badge">Ticket #${ticketNumber}</div><br>` + formattedContent;
+            }
+            
+            messageContent.innerHTML = formattedContent;
+            messageDiv.appendChild(messageContent);
+            
+            // Add timestamp
+            const timestamp = document.createElement('div');
+            timestamp.className = 'message-sender';
+            timestamp.textContent = role === 'user' ? currentUserEmail : 'PayG IT Support';
+            
+            if (role === 'user') {
+                messageDiv.insertBefore(timestamp, messageContent);
+            } else {
+                messageDiv.appendChild(timestamp);
+            }
+            
+            chatMessages.appendChild(messageDiv);
+            
+            // Scroll to bottom
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+        
+        // Clear chat UI (keep welcome message)
+        function clearChatUI() {
+            const messages = chatMessages.querySelectorAll('.message, .welcome-message');
+            messages.forEach(msg => {
+                if (!msg.classList.contains('welcome-message')) {
+                    msg.remove();
+                }
+            });
+            
+            conversationHistory = [];
+            localStorage.removeItem('itsm_chatbot_conversation');
+        }
+        
+        // Reset conversation on server
+        async function resetConversation() {
+            try {
+                await fetch(`${API_BASE_URL}/reset/${encodeURIComponent(currentUserEmail)}`, {
+                    method: 'POST'
+                });
+                addMessageToUI('system', 'Conversation reset. You can start a new request.');
+            } catch (error) {
+                console.error('Error resetting conversation:', error);
+            }
+        }
+        
+        // Save conversation to localStorage
+        function saveConversation() {
+            const conversationData = {
+                history: conversationHistory,
+                email: currentUserEmail,
+                timestamp: new Date().toISOString()
+            };
+            localStorage.setItem('itsm_chatbot_conversation', JSON.stringify(conversationData));
+        }
+        
+        // Load conversation from localStorage
+        function loadConversation() {
+            const saved = localStorage.getItem('itsm_chatbot_conversation');
+            if (saved) {
+                try {
+                    const data = JSON.parse(saved);
+                    
+                    // Only load if email matches
+                    if (data.email === currentUserEmail) {
+                        conversationHistory = data.history || [];
+                        
+                        // Replay conversation history
+                        data.history.forEach(msg => {
+                            if (msg.role === 'user') {
+                                addMessageToUI('user', msg.content);
+                            } else if (msg.role === 'assistant') {
+                                addMessageToUI('assistant', msg.content, msg.ticket_created, msg.ticket_number);
+                            }
+                        });
+                    }
+                } catch (error) {
+                    console.error('Error loading conversation:', error);
+                }
+            }
+        }
+        
+        // Change user email
+        function changeUserEmail(newEmail) {
+            if (newEmail && newEmail.includes('@')) {
+                currentUserEmail = newEmail;
+                currentEmail.textContent = newEmail;
+                
+                // Clear current conversation for new user
+                clearChatUI();
+                resetConversation();
+                
+                // Add welcome message for new user
+                addMessageToUI('system', `Welcome, ${newEmail}! How can I help you today?`);
+                
+                // Save to localStorage
+                localStorage.setItem('itsm_chatbot_email', newEmail);
+                
+                return true;
+            }
+            return false;
+        }
+        
+        // Event Listeners
+        sendButton.addEventListener('click', () => {
+            const message = chatInput.value.trim();
+            if (message) {
+                sendMessage(message);
+            }
+        });
+        
+        chatInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                const message = chatInput.value.trim();
+                if (message) {
+                    sendMessage(message);
+                }
+            }
+        });
+        
+        clearButton.addEventListener('click', clearChatUI);
+        
+        resetButton.addEventListener('click', () => {
+            resetConversation();
+            clearChatUI();
+        });
+        
+        userEmailBtn.addEventListener('click', () => {
+            emailInput.value = currentUserEmail;
+            emailModal.style.display = 'flex';
+        });
+        
+        cancelEmailBtn.addEventListener('click', () => {
+            emailModal.style.display = 'none';
+        });
+        
+        saveEmailBtn.addEventListener('click', () => {
+            const newEmail = emailInput.value.trim();
+            if (changeUserEmail(newEmail)) {
+                emailModal.style.display = 'none';
+            } else {
+                alert('Please enter a valid email address');
+            }
+        });
+        
+        // Close modal on outside click
+        emailModal.addEventListener('click', (e) => {
+            if (e.target === emailModal) {
+                emailModal.style.display = 'none';
+            }
+        });
+        
+        // Initialize
+        window.addEventListener('load', async () => {
+            // Load saved email
+            const savedEmail = localStorage.getItem('itsm_chatbot_email');
+            if (savedEmail) {
+                changeUserEmail(savedEmail);
+            }
+            
+            // Check server health
+            const isHealthy = await checkHealth();
+            
+            if (isHealthy) {
+                // Load saved conversation
+                loadConversation();
+                
+                // Focus on input
+                chatInput.focus();
+                
+                // Periodically check health
+                setInterval(checkHealth, 30000);
+            }
+        });
+    </script>
+</body>
+</html>

@@ -31,5 +31,7 @@ def map_incident(email, intent, caller_id, clean_text):
 def map_service_request(intent, caller_id):
     return {
         "short_description": f"Request: {intent['short_description']}",
-        "requested_for": caller_id
+        "requested_for": caller_id,
+        "approval": "requested",
+        "request_state": "pending_approval"
     }
